@@ -1,0 +1,135 @@
+library(readr)
+housing_data_2017 <- read_csv("~/Downloads/housing_data_2017.csv")
+
+
+#Figure 1.1 pairwise relationship
+sub1 <- subset(housing_data_2017, select=c(SalePrice,LotArea,YearBuilt, SqFt, FullBath, HalfBath, Bedrooms))
+pairs(sub1,upper.panel=panel.smooth)
+#Figure 1.2 scatterplot matrix w/ correlation 
+housing_data_2017$logSP = log(housing_data_2017$SalePrice)
+housing_data_2017$logLA = log(housing_data_2017$LotArea)
+ggpairs(housing_data_2017, columns=c(13,14,4,6,7,8,9), columnLabels=c("log(SalePrice)","log(LotArea)","YearBuilt","SqFt","FullBath","HalfBath","Bedrooms")) + theme_bw(16)
+
+
+#range of values 
+range(housing_data_2017$SalePrice)
+range(housing_data_2017$LotArea)
+range(housing_data_2017$SqFt)
+
+#model 2.1
+hmod1 <- lm(log(SalePrice) ~ log(LotArea)+YearBuilt+SqFt, data=housing_data_2017)
+summary(hmod1)
+
+#model 2.2~2.4
+hmod2 <- lm(log(SalePrice) ~ log(LotArea)*YearBuilt+SqFt, data=housing_data_2017)
+hmod3 <- lm(log(SalePrice) ~ log(LotArea)+SqFt*YearBuilt, data=housing_data_2017)
+hmod4 <- lm(log(SalePrice) ~ log(LotArea)*SqFt+YearBuilt, data=housing_data_2017)
+#statistical summary for model 2.2~2.4
+summary(hmod2)
+summary(hmod3)
+summary(hmod4)
+
+#compare models
+anova(hmod1,hmod2,hmod3,hmod4)
+
+#Figure 3.1 residual plot for model 2.2
+qplot(data=fortify(hmod2), x=.fitted, y=.resid) + geom_abline(intercept=0, slope=0, color="blue") + xlab("fitted values") + ylab("residuals") + ggtitle("Residuals under Model 2.2")
+
+#Figure 3.2 transparent residuals
+qplot(data=fortify(hmod2), x=.fitted, y=.resid,alpha=I(1/10)) + geom_abline(intercept=0, slope=0, color="blue") + xlab("fitted values") + ylab("residuals") + ggtitle("Residuals under Model 2.2")
+
+#Figure 3.3 qq plot for model 2.2
+qqnorm(resid(hmod2))
+qqline(resid(hmod2))
+
+#Figure 3.4 pure error anova test 
+library(alr3)
+pureErrorAnova(hmod2)
+
+#Figure 4.1 find high leverages
+housing_data_2017[order(hatvalues(hmod2),decreasing = T),][1:15,c(1:12)]
+
+#Figure 4.2 leverage plot 
+plot(hatvalues(hmod2), type="h", xlab="case", ylab="leverage"); points(hatvalues(hmod2), pch=16)
+abline(h=0.0063,col='red')
+
+#Figure 4.3 standardized residuals for garagetype 
+tmp = cbind(housing_data_2017, hatvalues(hmod2))
+names(tmp)[13] = "leverage"
+tmp = cbind(tmp, fits = fitted(hmod2), resids=residuals(hmod2))
+tmp = cbind(tmp, rres = rstandard(hmod2), tres = rstudent(hmod2))
+qplot(x=fits, y=rres, data=tmp, xlab="Fitted Values", ylab="Standardized Residuals", color=GarageType, size=leverage) + 
+  theme_bw(16) + geom_abline(slope=0, intercept=0)
+
+#Figure 4.4 standardized residuals for factor(Bedrooms)
+qplot(x=fits, y=rres, data=tmp, xlab="Fitted Values", ylab="Standardized Residuals", color=factor(Bedrooms), size=leverage) + 
+  theme_bw(16) + geom_abline(slope=0, intercept=0)
+
+#Figure 4.5 Bonferroni corrected outlier screening for model 2.2
+nun = dim(housing_data_2017)[1]
+pprime = 5
+alpha = 0.0063
+tstar = qt(1 - (alpha/nun)/2, df=nun-pprime)
+qplot(x=fits, y=tres, data=tmp, xlab="Fitted Values", ylab="Studentized Residuals", color=GarageType, size=leverage) +
+  theme_bw(16) + 
+  geom_abline(slope=0, intercept=0) + 
+  geom_hline(yintercept=tstar, linetype=2) + 
+  geom_hline(yintercept=-tstar, linetype=2) + 
+  ggtitle("Bonferroni Corrected Outlier Screening")
+
+#Figure 4.6
+tres = rstudent(hmod2)
+alpha = 0.05
+plot(abs(tres), ylim=c(0,5), type="h", ylab="|Studentized Residuals|"); 
+points(abs(tres), pch=16)
+abline(h=qt(1 - alpha/2, df=1593), lty=2)
+abline(h=qt(1 - (alpha/1598)/2, df=1593), lty=2, col="red")
+legend("topleft", legend=c("Individual Error Rate 0.05", "Maximum Familywise Error Rate 0.05"),cex=0.5, lty=c(2,2), col=c("black", "red"))
+
+
+#Figure 5.1 model 2.5
+hmod5 <- lm(log(SalePrice) ~ log(LotArea)*YearBuilt+SqFt+Bedrooms+FullBath+HalfBath+Rooms,data=housing_data_2017)
+summary(hmod7)
+anova(hmod5)
+
+#Figure 5.2 model 2.6
+hmod6 <- lm(log(SalePrice) ~ log(LotArea)*YearBuilt+SqFt+factor(Bedrooms)+factor(FullBath)+factor(HalfBath)+factor(Rooms),
+            data=housing_data_2017)
+anova(hmod6)
+
+#Figure 5.3 model 2.7
+hmod7 <- lm(log(SalePrice) ~ log(LotArea)+YearBuilt+SqFt+factor(Bedrooms)+factor(FullBath)+factor(HalfBath)+factor(Rooms),
+            data=housing_data_2017)
+anova(hmod7)
+
+#qq plots for new models 2.5~2.7
+qqnorm(resid(hmod5))
+qqline(resid(hmod5))
+
+qqnorm(resid(hmod6))
+qqline(resid(hmod6))
+
+qqnorm(resid(hmod7))
+qqline(resid(hmod7))
+
+#residual plots for new models 2.5~2.7
+library(ggplot2)
+qplot(data=fortify(hmod5), x=.fitted, y=.resid) + geom_abline(intercept=0, slope=0, color="blue") + xlab("fitted values") + 
+  ylab("residuals") + ggtitle("Residuals under Model 2.5")
+qplot(data=fortify(hmod6), x=.fitted, y=.resid) + geom_abline(intercept=0, slope=0, color="blue") + xlab("fitted values") + 
+  ylab("residuals") + ggtitle("Residuals under Model 2.6")
+qplot(data=fortify(hmod7), x=.fitted, y=.resid) + geom_abline(intercept=0, slope=0, color="blue") + xlab("fitted values") + 
+  ylab("residuals") + ggtitle("Residuals under Model 2.7")
+
+# collect median values for all regressors
+summary(housing_data_2017$LotArea)
+summary(housing_data_2017$YearBuilt)
+summary(housing_data_2017$SqFt)
+summary(housing_data_2017$Bedrooms)
+summary(housing_data_2017$FullBath)
+summary(housing_data_2017$HalfBath)
+summary(housing_data_2017$Rooms)
+
+predict(hmod7,newdata=data.frame(LotArea=9876,YearBuilt=1974,SqFt=1478,Bedrooms=3,FullBath=2,HalfBath=0,Rooms=6),interval="confidence",se.fit=T)
+
+
